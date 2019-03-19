@@ -10,3 +10,7 @@ To be able to load any pdf, markup + annotate and save metadata
 
 - [pdf.js](https://mozilla.github.io/pdf.js/)
 
+## Sample pdf sources
+
+- [haskell book](http://haskellbook.com/assets/img/sample.pdf)
+- [Mozilla](https://mozilla.github.io/pdf.js/examples/index.html#interactive-examples)

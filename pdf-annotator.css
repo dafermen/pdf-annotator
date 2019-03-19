@@ -1,0 +1,23 @@
+.pdf-annotator-toolbar {
+  margin-bottom: 5px;
+}
+
+.pdf-annotator-toolbar button {
+  padding: 5px 10px;
+  background-color: whitesmoke;
+  border: 1px solid #e6e6e6;
+  cursor: pointer;
+  margin-right: 3px;
+}
+.pdf-annotator-toolbar button.active {
+  background-color: rgb(167, 167, 167);
+}
+
+.pdf-annotator-workbench {
+  position: relative;
+}
+.pdf-annotator-workbench .pdf-annotator-svg-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+}

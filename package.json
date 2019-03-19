@@ -4,6 +4,8 @@
   "description": "A project to support marking up and annotating a PDF in the browser",
   "main": "index.js",
   "scripts": {
+    "s": "npm run start",
+    "start": "serve .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -16,7 +18,11 @@
     "url": "https://github.com/aTable/pdf-annotator/issues"
   },
   "homepage": "https://github.com/aTable/pdf-annotator#readme",
+  "devDependencies": {
+    "pdfjs-dist": "^2.0.943",
+    "serve": "^10.1.2"
+  },
   "dependencies": {
-    "pdfjs-dist": "^2.0.943"
+    "svg.js": "^2.7.1"
   }
 }

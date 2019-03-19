@@ -24,10 +24,12 @@ var config = {
   isOverlayInitialized: false,
   color: "#f06",
   toolbarEl: null,
+  svg: null,
   activeSvgElement: svgElements.circle,
   linearElements: [svgElements.line, svgElements.polyline],
   lastMouseX: 0,
-  lastMouseY: 0
+  lastMouseY: 0,
+  thresholdDistanceToIgnoreUserInput: 5
 };
 
 function toolbarButtonClicked(svgElement, e) {
@@ -83,6 +85,7 @@ function initWorkbench(workbenchEl, options) {
   svg.on("mousedown", saveLastMouseDownLocation);
   svg.on("mouseup", addLineAnnotation.bind(null, svg));
   config.isWorkbenchInitialized = true;
+  config.svg = svg;
 }
 
 function saveLastMouseDownLocation(e) {
@@ -96,10 +99,9 @@ function addLineAnnotation(svg, e) {
   }
   var differenceX = Math.abs(config.lastMouseX - e.layerX);
   var differenceY = Math.abs(config.lastMouseY - e.layerY);
-  var thresholdDistanceToIgnoreUserInput = 5;
   if (
-    differenceX < thresholdDistanceToIgnoreUserInput ||
-    differenceY < thresholdDistanceToIgnoreUserInput
+    differenceX < config.thresholdDistanceToIgnoreUserInput ||
+    differenceY < config.thresholdDistanceToIgnoreUserInput
   )
     return;
   switch (config.activeSvgElement) {
@@ -112,8 +114,15 @@ function addLineAnnotation(svg, e) {
       elementToAdd = svg.polyline(
         "50,0 30,20 100,50 60,60 50,100 40,60 0,50 40,40"
       );
+      elementToAdd.move(e.layerX, e.layerY);
       break;
   }
+  elementToAdd.attr({ fill: config.color });
+
+  elementToAdd.click(function(e) {
+    elementToAdd.remove();
+    e.stopPropagation();
+  });
 }
 
 function addShapeAnnotation(svg, e) {
@@ -199,7 +208,18 @@ function addShapeAnnotation(svg, e) {
   });
 }
 
+function save() {
+  localStorage.setItem('annotations', config.svg.svg())
+}
+
+function load() {
+  var annotations = localStorage.getItem('annotations')
+config.svg.svg(annotations)
+}
+
 var pdfAnnotator = {
   initToolbar: initToolbar,
-  initWorkbench: initWorkbench
+  initWorkbench: initWorkbench,
+  save: save,
+  load: load,
 };

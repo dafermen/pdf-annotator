@@ -22,14 +22,18 @@ var svgElements = {
 var config = {
   isToolbarInitialized: false,
   isOverlayInitialized: false,
-  color: "#f06",
+  color: "#660000",
+  strokeWidth: 3,
   toolbarEl: null,
   svg: null,
-  activeSvgElement: svgElements.circle,
-  linearElements: [svgElements.line, svgElements.polyline],
-  lastMouseX: 0,
-  lastMouseY: 0,
-  thresholdDistanceToIgnoreUserInput: 5
+  activeSvgElement: null,
+  lastMouseDownX: 0,
+  lastMouseDownY: 0,
+  currentMouseX: 0,
+  currentMouseY: 0,
+  thresholdDistanceToIgnoreUserInput: 5,
+  isLeftClickDown: false,
+  lastElementCreated: null
 };
 
 function toolbarButtonClicked(svgElement, e) {
@@ -37,6 +41,83 @@ function toolbarButtonClicked(svgElement, e) {
   var oldActiveButton = config.toolbarEl.querySelector("button.active");
   if (oldActiveButton) oldActiveButton.classList.remove("active");
   e.target.classList.add("active");
+
+  attachAppropriateHandlersToWorkbench(svgElement);
+}
+
+function attachAppropriateHandlersToWorkbench(svgElement) {
+  // unbind all events https://svgjs.com/docs/2.7/events/#element-off
+  config.svg.off();
+  config.svg.on("mousedown mouseup", saveMouseDownState);
+  config.svg.on("contextmenu", abortPendingAnnotations);
+  config.svg.on("mousedown", saveMouseDownLocation);
+  config.svg.on("mousemove", saveMouseLocation);
+  config.svg.on("mouseup", markElementCompleted);
+
+  switch (svgElement) {
+    case svgElements.rect:
+      config.svg.on("mousedown", addShapeAnnotation.bind(null, config.svg));
+      config.svg.on("mousemove", updatePendingRect);
+      break;
+    case svgElements.circle:
+      config.svg.on("mousedown", addShapeAnnotation.bind(null, config.svg));
+      config.svg.on("mousemove", updatePendingCircle);
+      break;
+    case svgElements.line:
+      config.svg.on("mousedown", addLineAnnotation.bind(null, config.svg));
+      config.svg.on("mousemove", updatePendingLineAnnotation);
+      break;
+  }
+
+  // svg.click(addShapeAnnotation.bind(null, svg));
+}
+
+function markElementCompleted(e) {
+  if (e.button !== 0) return;
+  config.lastElementCreated.removeClass("is-pending");
+}
+
+function saveMouseDownState(e) {
+  switch (e.button) {
+    case 0:
+      config.isLeftClickDown = !config.isLeftClickDown;
+      break;
+  }
+}
+
+function updatePendingRect(e) {
+  if (!config.isLeftClickDown) return;
+  var newWidth = e.layerX - config.lastElementCreated.x();
+  var newHeight = e.layerY - config.lastElementCreated.y();
+  config.lastElementCreated.attr({ height: newHeight, width: newWidth });
+}
+function updatePendingCircle(e) {
+  if (!config.isLeftClickDown) return;
+  var distance = distanceBetweenPoints(e.layerX, config.lastElementCreated.x(), e.layerY, config.lastElementCreated.y()) / 3;
+  config.lastElementCreated.radius(distance);
+}
+
+function distanceBetweenPoints(x1, x2, y1, y2) {
+  return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+}
+
+function updatePendingLineAnnotation(e) {
+  if (!config.isLeftClickDown) return;
+  config.lastElementCreated.attr({ x2: e.layerX, y2: e.layerY });
+}
+
+function abortPendingAnnotations(e) {
+  var pending = config.svg.select(".is-pending").members;
+  for (var i = 0; i < pending.length; i++) {
+    pending[i].remove();
+  }
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+function elementClickedToRemove(e) {
+  e.target.remove();
+  e.stopPropagation();
 }
 
 function initToolbar(toolbarEl) {
@@ -53,6 +134,12 @@ function initToolbar(toolbarEl) {
     config.color = prompt("Color: ", config.color);
   });
   toolbarEl.appendChild(colorButton);
+  var strokeWidthButton = document.createElement("button");
+  strokeWidthButton.textContent = "Stroke width";
+  strokeWidthButton.addEventListener("click", function() {
+    config.strokeWidth = prompt("Stroke Width: ", config.strokeWidth);
+  });
+  toolbarEl.appendChild(strokeWidthButton);
 
   for (var i = 0; i < Object.keys(svgElements).length; i++) {
     var element = Object.entries(svgElements)[i];
@@ -66,6 +153,7 @@ function initToolbar(toolbarEl) {
     button.addEventListener("click", toolbarButtonClicked.bind(null, value));
     toolbarEl.appendChild(button);
   }
+
   config.isToolbarInitialized = true;
 }
 
@@ -81,34 +169,31 @@ function initWorkbench(workbenchEl, options) {
   workbenchEl.appendChild(svgContainer);
 
   var svg = SVG("svg-container").size(options.width, options.height);
-  svg.click(addShapeAnnotation.bind(null, svg));
-  svg.on("mousedown", saveLastMouseDownLocation);
-  svg.on("mouseup", addLineAnnotation.bind(null, svg));
   config.isWorkbenchInitialized = true;
   config.svg = svg;
 }
 
-function saveLastMouseDownLocation(e) {
-  config.lastMouseX = e.layerX;
-  config.lastMouseY = e.layerY;
+function saveMouseDownLocation(e) {
+  config.lastMouseDownX = e.layerX;
+  config.lastMouseDownY = e.layerY;
+}
+function saveMouseLocation(e) {
+  config.currentMouseX = e.layerX;
+  config.currentMouseY = e.layerY;
+}
+
+function applyElementDefaults(element) {
+  return element.addClass("is-pending").click(elementClickedToRemove);
 }
 
 function addLineAnnotation(svg, e) {
-  if (!config.linearElements.includes(config.activeSvgElement)) {
-    return;
-  }
-  var differenceX = Math.abs(config.lastMouseX - e.layerX);
-  var differenceY = Math.abs(config.lastMouseY - e.layerY);
-  if (
-    differenceX < config.thresholdDistanceToIgnoreUserInput ||
-    differenceY < config.thresholdDistanceToIgnoreUserInput
-  )
-    return;
+  if (e.button !== 0) return;
+  var elementToAdd = null;
   switch (config.activeSvgElement) {
     case svgElements.line:
       elementToAdd = svg
-        .line(config.lastMouseX, config.lastMouseY, e.layerX, e.layerY)
-        .stroke({ width: 1 });
+        .line(config.lastMouseDownX, config.lastMouseDownY, e.layerX, e.layerY)
+        .stroke({ width: config.strokeWidth, color: config.color });
       break;
     case svgElements.polyline:
       elementToAdd = svg.polyline(
@@ -118,25 +203,23 @@ function addLineAnnotation(svg, e) {
       break;
   }
   elementToAdd.attr({ fill: config.color });
-
-  elementToAdd.click(function(e) {
-    elementToAdd.remove();
-    e.stopPropagation();
-  });
+  applyElementDefaults(elementToAdd);
+  config.lastElementCreated = elementToAdd;
 }
 
 function addShapeAnnotation(svg, e) {
-  // only shapes can be added (not linear shapes)
-  if (config.linearElements.includes(config.activeSvgElement)) {
-    return;
-  }
   var elementToAdd = null;
   switch (config.activeSvgElement) {
     case svgElements.rect:
-      elementToAdd = svg.rect(50, 50);
+      elementToAdd = svg
+        .rect(0, 0)
+        .attr({ stroke: config.color, fill: "transparent" })
+        .style("stroke-width: " + config.strokeWidth);
       break;
     case svgElements.circle:
-      elementToAdd = svg.circle(50);
+      elementToAdd = svg
+        .circle(0)
+        .attr({ stroke: config.color, fill: "transparent" });
       break;
     case svgElements.ellipse:
       elementToAdd = svg.ellipse(50, 100);
@@ -200,21 +283,22 @@ function addShapeAnnotation(svg, e) {
       break;
   }
 
-  elementToAdd.move(e.layerX, e.layerY).attr({ fill: config.color });
-
-  elementToAdd.click(function(e) {
-    elementToAdd.remove();
-    e.stopPropagation();
-  });
+  elementToAdd.move(e.layerX, e.layerY);
+  applyElementDefaults(elementToAdd);
+  config.lastElementCreated = elementToAdd;
 }
 
 function save() {
-  localStorage.setItem('annotations', config.svg.svg())
+  localStorage.setItem("annotations", config.svg.svg());
 }
 
 function load() {
-  var annotations = localStorage.getItem('annotations')
-config.svg.svg(annotations)
+  var annotations = localStorage.getItem("annotations");
+  config.svg.svg(annotations);
+}
+
+function clear() {
+  config.svg.clear();
 }
 
 var pdfAnnotator = {
@@ -222,4 +306,5 @@ var pdfAnnotator = {
   initWorkbench: initWorkbench,
   save: save,
   load: load,
+  clear: clear
 };

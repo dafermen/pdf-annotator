@@ -60,6 +60,7 @@ function queueRenderPage(num) {
   } else {
     renderPage(num);
   }
+  pdfAnnotator.clear();
 }
 
 /**

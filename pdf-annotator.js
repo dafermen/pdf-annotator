@@ -16,7 +16,8 @@ var svgElements = {
   clipPath: "ClipPath",
   use: "Use",
   marker: "Marker",
-  bare: "Bare"
+  bare: "Bare",
+  arrow: "Arrow",
 };
 
 var config = {
@@ -31,9 +32,9 @@ var config = {
   lastMouseDownY: 0,
   currentMouseX: 0,
   currentMouseY: 0,
-  thresholdDistanceToIgnoreUserInput: 5,
   isLeftClickDown: false,
-  lastElementCreated: null
+  lastElementCreated: null,
+  polylinePoints: []
 };
 
 function toolbarButtonClicked(svgElement, e) {
@@ -67,6 +68,10 @@ function attachAppropriateHandlersToWorkbench(svgElement) {
       config.svg.on("mousedown", addLineAnnotation.bind(null, config.svg));
       config.svg.on("mousemove", updatePendingLineAnnotation);
       break;
+    case svgElements.polyline:
+      config.svg.on("mousedown", addPolylineAnnotation.bind(null, config.svg));
+      config.svg.on("mousemove", updatePendingPolylineAnnotation);
+      break;
   }
 
   // svg.click(addShapeAnnotation.bind(null, svg));
@@ -93,7 +98,13 @@ function updatePendingRect(e) {
 }
 function updatePendingCircle(e) {
   if (!config.isLeftClickDown) return;
-  var distance = distanceBetweenPoints(e.layerX, config.lastElementCreated.x(), e.layerY, config.lastElementCreated.y()) / 3;
+  var distance =
+    distanceBetweenPoints(
+      e.layerX,
+      config.lastElementCreated.x(),
+      e.layerY,
+      config.lastElementCreated.y()
+    ) / 3;
   config.lastElementCreated.radius(distance);
 }
 
@@ -104,6 +115,14 @@ function distanceBetweenPoints(x1, x2, y1, y2) {
 function updatePendingLineAnnotation(e) {
   if (!config.isLeftClickDown) return;
   config.lastElementCreated.attr({ x2: e.layerX, y2: e.layerY });
+}
+
+function updatePendingPolylineAnnotation(e) {
+  if (!config.isLeftClickDown) return;
+  config.lastElementCreated.plot([
+    ...config.lastElementCreated.plot().value,
+    [e.layerX, e.layerY]
+  ]);
 }
 
 function abortPendingAnnotations(e) {
@@ -186,23 +205,23 @@ function applyElementDefaults(element) {
   return element.addClass("is-pending").click(elementClickedToRemove);
 }
 
+function addPolylineAnnotation(svg, e) {
+  if (e.button !== 0) return;
+  config.polylinePoints = [];
+  var elementToAdd = svg
+    .polyline([[e.layerX, e.layerY]])
+    .stroke({ width: config.strokeWidth, color: config.color })
+    .attr({ fill: 'transparent' });
+  applyElementDefaults(elementToAdd);
+  config.lastElementCreated = elementToAdd;
+}
+
 function addLineAnnotation(svg, e) {
   if (e.button !== 0) return;
-  var elementToAdd = null;
-  switch (config.activeSvgElement) {
-    case svgElements.line:
-      elementToAdd = svg
-        .line(config.lastMouseDownX, config.lastMouseDownY, e.layerX, e.layerY)
-        .stroke({ width: config.strokeWidth, color: config.color });
-      break;
-    case svgElements.polyline:
-      elementToAdd = svg.polyline(
-        "50,0 30,20 100,50 60,60 50,100 40,60 0,50 40,40"
-      );
-      elementToAdd.move(e.layerX, e.layerY);
-      break;
-  }
-  elementToAdd.attr({ fill: config.color });
+  var elementToAdd = svg
+    .line(config.lastMouseDownX, config.lastMouseDownY, e.layerX, e.layerY)
+    .stroke({ width: config.strokeWidth, color: config.color })
+    .attr({ fill: config.color });
   applyElementDefaults(elementToAdd);
   config.lastElementCreated = elementToAdd;
 }
